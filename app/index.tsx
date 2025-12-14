@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -54,21 +55,19 @@ export default function Index() {
         collection(db, "notes"),
         where("userId", "==", user.uid)
       );
+
       const snap = await getDocs(q);
       const fetched = snap.docs.map((d) => ({
         id: d.id,
         text: d.data().text,
       }));
+
       setNotes(fetched);
       await AsyncStorage.setItem("NOTES", JSON.stringify(fetched));
     } catch {
-      loadLocal();
+      const saved = await AsyncStorage.getItem("NOTES");
+      if (saved) setNotes(JSON.parse(saved));
     }
-  };
-
-  const loadLocal = async () => {
-    const saved = await AsyncStorage.getItem("NOTES");
-    if (saved) setNotes(JSON.parse(saved));
   };
 
   const handleAuth = async () => {
@@ -76,48 +75,25 @@ export default function Index() {
       isSignup
         ? await createUserWithEmailAndPassword(auth, email, password)
         : await signInWithEmailAndPassword(auth, email, password);
-
-      setEmail("");
-      setPassword("");
     } catch (e: any) {
       alert(e.message);
     }
   };
 
-  const logout = async () => {
-    await signOut(auth);
-    setNotes([]);
-  };
-
-  const persistLocal = async (updated: Note[]) => {
-    setNotes(updated);
-    await AsyncStorage.setItem("NOTES", JSON.stringify(updated));
-  };
-
-  const syncNote = async (note: Note) => {
-    if (!user) return;
-    try {
-      await setDoc(doc(db, "notes", note.id), {
-        text: note.text,
-        userId: user.uid,
-      });
-    } catch {}
-  };
-
-  const deleteFromCloud = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, "notes", id));
-    } catch {}
-  };
-
   const addNote = async () => {
     const newNote = {
       id: Date.now().toString(),
-      text: "New note",
+      text: "Write something…",
     };
+
     const updated = [newNote, ...notes];
-    await persistLocal(updated);
-    await syncNote(newNote);
+    setNotes(updated);
+    await AsyncStorage.setItem("NOTES", JSON.stringify(updated));
+    await setDoc(doc(db, "notes", newNote.id), {
+      text: newNote.text,
+      userId: user.uid,
+    });
+
     setEditingId(newNote.id);
   };
 
@@ -125,87 +101,104 @@ export default function Index() {
     const updated = notes.map((n) =>
       n.id === id ? { ...n, text } : n
     );
-    await persistLocal(updated);
-    await syncNote(updated.find((n) => n.id === id)!);
+    setNotes(updated);
+    await AsyncStorage.setItem("NOTES", JSON.stringify(updated));
+    await setDoc(doc(db, "notes", id), {
+      text,
+      userId: user.uid,
+    });
   };
 
   const deleteNote = async (id: string) => {
-    await persistLocal(notes.filter((n) => n.id !== id));
-    await deleteFromCloud(id);
+    const updated = notes.filter((n) => n.id !== id);
+    setNotes(updated);
+    await AsyncStorage.setItem("NOTES", JSON.stringify(updated));
+    await deleteDoc(doc(db, "notes", id));
   };
+
+ 
 
   if (!user) {
     return (
-      <View style={styles.authContainer}>
-        <Text style={styles.authTitle}>
-          {isSignup ? "Create Account" : "Welcome Back"}
-        </Text>
-
-        <TextInput
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          style={styles.input}
-          autoCapitalize="none"
-        />
-
-        <TextInput
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          style={styles.input}
-        />
-
-        <TouchableOpacity style={styles.primaryBtn} onPress={handleAuth}>
-          <Text style={styles.primaryText}>
-            {isSignup ? "Sign Up" : "Login"}
+      <LinearGradient colors={["#eef2ff", "#f8fafc"]} style={styles.authBg}>
+        <View style={styles.authCard}>
+          <Text style={styles.authTitle}>
+            {isSignup ? "Create account" : "Welcome back"}
           </Text>
-        </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => setIsSignup(!isSignup)}>
-          <Text style={styles.switchText}>
-            {isSignup ? "Login instead" : "Create an account"}
-          </Text>
-        </TouchableOpacity>
-      </View>
+          <TextInput
+            placeholder="Email"
+            placeholderTextColor="#94a3b8"
+            style={styles.input}
+            autoCapitalize="none"
+            value={email}
+            onChangeText={setEmail}
+          />
+
+          <TextInput
+            placeholder="Password"
+            placeholderTextColor="#94a3b8"
+            secureTextEntry
+            style={styles.input}
+            value={password}
+            onChangeText={setPassword}
+          />
+
+          <TouchableOpacity style={styles.primaryBtn} onPress={handleAuth}>
+            <Text style={styles.primaryText}>
+              {isSignup ? "Sign up" : "Login"}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => setIsSignup(!isSignup)}>
+            <Text style={styles.switchText}>
+              {isSignup ? "Login instead" : "Create new account"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
     );
   }
 
+
+
   return (
-    <View style={styles.container}>
+    <LinearGradient colors={["#f8fafc", "#eef2ff"]} style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Notes</Text>
-        <TouchableOpacity onPress={logout}>
-          <Ionicons name="log-out-outline" size={22} color="#444" />
+        <Text style={styles.headerTitle}>Notes</Text>
+        <TouchableOpacity onPress={() => signOut(auth)}>
+          <Ionicons name="log-out-outline" size={22} color="#475569" />
         </TouchableOpacity>
       </View>
 
       <FlatList
         data={notes}
         keyExtractor={(n) => n.id}
-        contentContainerStyle={{ paddingBottom: 80 }}
+        contentContainerStyle={{ paddingBottom: 120 }}
         renderItem={({ item }) => (
           <View style={styles.noteCard}>
             {editingId === item.id ? (
               <TextInput
-                value={item.text}
                 autoFocus
+                value={item.text}
                 onChangeText={(t) => updateText(item.id, t)}
                 onBlur={() => setEditingId(null)}
                 style={styles.noteInput}
+                underlineColorAndroid="transparent" 
+                selectionColor="#6366f1"
+                multiline
               />
             ) : (
               <Text style={styles.noteText}>{item.text}</Text>
             )}
 
-            <View style={styles.iconRow}>
+            <View style={styles.actions}>
               <TouchableOpacity onPress={() => setEditingId(item.id)}>
-                <Ionicons name="pencil" size={18} color="#555" />
+                <Ionicons name="pencil" size={17} color="#6366f1" />
               </TouchableOpacity>
 
               <TouchableOpacity onPress={() => deleteNote(item.id)}>
-                <Ionicons name="trash" size={18} color="#e53935" />
+                <Ionicons name="trash" size={17} color="#ef4444" />
               </TouchableOpacity>
             </View>
           </View>
@@ -215,108 +208,123 @@ export default function Index() {
       <TouchableOpacity style={styles.fab} onPress={addNote}>
         <Ionicons name="add" size={26} color="#fff" />
       </TouchableOpacity>
-    </View>
+    </LinearGradient>
   );
 }
+
+
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f6f7fb",
-    padding: 16,
+    padding: 18,
   },
 
-  authContainer: {
+  authBg: {
     flex: 1,
     justifyContent: "center",
     padding: 24,
-    backgroundColor: "#f6f7fb",
+  },
+
+  authCard: {
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderRadius: 22,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 6,
   },
 
   authTitle: {
     fontSize: 26,
     fontWeight: "700",
     marginBottom: 24,
-    textAlign: "center",
-  },
-
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: "700",
+    color: "#0f172a",
   },
 
   input: {
-    backgroundColor: "#fff",
+    backgroundColor: "#f1f5f9",
+    borderRadius: 14,
     padding: 14,
-    borderRadius: 10,
     marginBottom: 12,
+    fontSize: 15,
+    color: "#0f172a",
   },
 
   primaryBtn: {
-    backgroundColor: "#4f46e5",
-    padding: 14,
-    borderRadius: 10,
+    backgroundColor: "#6366f1",
+    padding: 15,
+    borderRadius: 16,
     alignItems: "center",
     marginTop: 8,
   },
 
   primaryText: {
     color: "#fff",
-    fontWeight: "600",
     fontSize: 16,
+    fontWeight: "600",
   },
 
   switchText: {
-    marginTop: 16,
+    marginTop: 18,
     textAlign: "center",
-    color: "#555",
+    color: "#475569",
+  },
+
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 18,
+  },
+
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#0f172a",
   },
 
   noteCard: {
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+    backgroundColor: "rgba(255,255,255,0.85)",
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 12,
   },
 
   noteText: {
     fontSize: 15,
+    color: "#0f172a",
     marginBottom: 10,
   },
 
   noteInput: {
-    borderBottomWidth: 1,
-    borderColor: "#ccc",
+    fontSize: 15,
+    color: "#0f172a",
+    padding: 0,
+    backgroundColor: "transparent",
     marginBottom: 10,
   },
 
-  iconRow: {
+  actions: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    gap: 16,
+    gap: 18,
   },
 
   fab: {
     position: "absolute",
-    bottom: 24,
-    right: 24,
-    backgroundColor: "#4f46e5",
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: "center",
+    bottom: 32,
+    right: 32,
+    backgroundColor: "#6366f1",
+    width: 62,
+    height: 62,
+    borderRadius: 31,
     justifyContent: "center",
-    elevation: 5,
+    alignItems: "center",
+    shadowColor: "#6366f1",
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 8,
   },
 });
