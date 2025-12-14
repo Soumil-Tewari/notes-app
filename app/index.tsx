@@ -26,36 +26,27 @@ import {
 } from "react-native";
 import { auth, db } from "../firebase";
 
-
 type Note = {
   id: string;
   text: string;
 };
 
-
 export default function Index() {
- 
   const [user, setUser] = useState<any>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSignup, setIsSignup] = useState(false);
 
- 
   const [notes, setNotes] = useState<Note[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
 
- 
   useEffect(() => {
     return onAuthStateChanged(auth, setUser);
   }, []);
 
-
   useEffect(() => {
     if (user) initialSync();
   }, [user]);
-
-  
- 
 
   const initialSync = async () => {
     try {
@@ -63,13 +54,11 @@ export default function Index() {
         collection(db, "notes"),
         where("userId", "==", user.uid)
       );
-
       const snap = await getDocs(q);
-      const fetched: Note[] = snap.docs.map((d) => ({
+      const fetched = snap.docs.map((d) => ({
         id: d.id,
         text: d.data().text,
       }));
-
       setNotes(fetched);
       await AsyncStorage.setItem("NOTES", JSON.stringify(fetched));
     } catch {
@@ -81,8 +70,6 @@ export default function Index() {
     const saved = await AsyncStorage.getItem("NOTES");
     if (saved) setNotes(JSON.parse(saved));
   };
-
- 
 
   const handleAuth = async () => {
     try {
@@ -102,14 +89,10 @@ export default function Index() {
     setNotes([]);
   };
 
-  
-
   const persistLocal = async (updated: Note[]) => {
     setNotes(updated);
     await AsyncStorage.setItem("NOTES", JSON.stringify(updated));
   };
-
-
 
   const syncNote = async (note: Note) => {
     if (!user) return;
@@ -118,27 +101,20 @@ export default function Index() {
         text: note.text,
         userId: user.uid,
       });
-    } catch {
-      
-    }
+    } catch {}
   };
 
   const deleteFromCloud = async (id: string) => {
     try {
       await deleteDoc(doc(db, "notes", id));
-    } catch {
-     
-    }
+    } catch {}
   };
 
-  
-
   const addNote = async () => {
-    const newNote: Note = {
+    const newNote = {
       id: Date.now().toString(),
       text: "New note",
     };
-
     const updated = [newNote, ...notes];
     await persistLocal(updated);
     await syncNote(newNote);
@@ -149,24 +125,20 @@ export default function Index() {
     const updated = notes.map((n) =>
       n.id === id ? { ...n, text } : n
     );
-
-    const note = updated.find((n) => n.id === id)!;
     await persistLocal(updated);
-    await syncNote(note);
+    await syncNote(updated.find((n) => n.id === id)!);
   };
 
   const deleteNote = async (id: string) => {
-    const updated = notes.filter((n) => n.id !== id);
-    await persistLocal(updated);
+    await persistLocal(notes.filter((n) => n.id !== id));
     await deleteFromCloud(id);
   };
 
-
   if (!user) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>
-          {isSignup ? "Create Account" : "Login"}
+      <View style={styles.authContainer}>
+        <Text style={styles.authTitle}>
+          {isSignup ? "Create Account" : "Welcome Back"}
         </Text>
 
         <TextInput
@@ -185,36 +157,36 @@ export default function Index() {
           style={styles.input}
         />
 
-        <TouchableOpacity style={styles.btn} onPress={handleAuth}>
-          <Text>{isSignup ? "Sign Up" : "Login"}</Text>
+        <TouchableOpacity style={styles.primaryBtn} onPress={handleAuth}>
+          <Text style={styles.primaryText}>
+            {isSignup ? "Sign Up" : "Login"}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => setIsSignup(!isSignup)}>
           <Text style={styles.switchText}>
-            {isSignup ? "Login instead" : "Create account"}
+            {isSignup ? "Login instead" : "Create an account"}
           </Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-
-
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={logout}>
-        <Text style={styles.logout}>Logout</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.btn} onPress={addNote}>
-        <Text>Add Note</Text>
-      </TouchableOpacity>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>My Notes</Text>
+        <TouchableOpacity onPress={logout}>
+          <Ionicons name="log-out-outline" size={22} color="#444" />
+        </TouchableOpacity>
+      </View>
 
       <FlatList
         data={notes}
         keyExtractor={(n) => n.id}
+        contentContainerStyle={{ paddingBottom: 80 }}
         renderItem={({ item }) => (
-          <View style={styles.note}>
+          <View style={styles.noteCard}>
             {editingId === item.id ? (
               <TextInput
                 value={item.text}
@@ -227,69 +199,124 @@ export default function Index() {
               <Text style={styles.noteText}>{item.text}</Text>
             )}
 
-            <TouchableOpacity onPress={() => setEditingId(item.id)}>
-              <Ionicons name="pencil" size={18} />
-            </TouchableOpacity>
+            <View style={styles.iconRow}>
+              <TouchableOpacity onPress={() => setEditingId(item.id)}>
+                <Ionicons name="pencil" size={18} color="#555" />
+              </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => deleteNote(item.id)}>
-              <Ionicons name="trash" size={18} color="red" />
-            </TouchableOpacity>
+              <TouchableOpacity onPress={() => deleteNote(item.id)}>
+                <Ionicons name="trash" size={18} color="#e53935" />
+              </TouchableOpacity>
+            </View>
           </View>
         )}
       />
+
+      <TouchableOpacity style={styles.fab} onPress={addNote}>
+        <Ionicons name="add" size={26} color="#fff" />
+      </TouchableOpacity>
     </View>
   );
 }
 
-
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
-    marginTop: 60,
+    flex: 1,
+    backgroundColor: "#f6f7fb",
+    padding: 16,
   },
-  title: {
-    fontSize: 22,
-    marginBottom: 20,
-    fontWeight: "600",
+
+  authContainer: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 24,
+    backgroundColor: "#f6f7fb",
   },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    padding: 10,
-    marginBottom: 10,
-    borderRadius: 6,
+
+  authTitle: {
+    fontSize: 26,
+    fontWeight: "700",
+    marginBottom: 24,
+    textAlign: "center",
   },
-  btn: {
-    backgroundColor: "#e0e0e0",
-    padding: 12,
+
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    borderRadius: 6,
+    marginBottom: 16,
+  },
+
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+  },
+
+  input: {
+    backgroundColor: "#fff",
+    padding: 14,
+    borderRadius: 10,
     marginBottom: 12,
   },
+
+  primaryBtn: {
+    backgroundColor: "#4f46e5",
+    padding: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 8,
+  },
+
+  primaryText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 16,
+  },
+
   switchText: {
-    marginTop: 10,
+    marginTop: 16,
     textAlign: "center",
     color: "#555",
   },
-  logout: {
+
+  noteCard: {
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 14,
     marginBottom: 10,
-    color: "#555",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  note: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 12,
-    backgroundColor: "#f2f2f2",
-    borderRadius: 6,
-    marginBottom: 6,
-  },
+
   noteText: {
-    flex: 1,
+    fontSize: 15,
+    marginBottom: 10,
   },
+
   noteInput: {
-    flex: 1,
     borderBottomWidth: 1,
-    borderColor: "#999",
+    borderColor: "#ccc",
+    marginBottom: 10,
+  },
+
+  iconRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 16,
+  },
+
+  fab: {
+    position: "absolute",
+    bottom: 24,
+    right: 24,
+    backgroundColor: "#4f46e5",
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 5,
   },
 });
